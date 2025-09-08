@@ -1,0 +1,442 @@
+import { useState, useEffect } from 'react'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { 
+  Shield, 
+  FileText, 
+  Upload, 
+  Download, 
+  Clock, 
+  AlertTriangle, 
+  CheckCircle,
+  LogOut,
+  Activity,
+  Users
+} from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth'
+import { supabase } from '@/integrations/supabase/client'
+import { AdvancedFileUpload } from './AdvancedFileUpload'
+import { Footer } from './Footer'
+import { EnhancedPIIResults } from './EnhancedPIIResults'
+import { useToast } from '@/hooks/use-toast'
+import { extractTextWithOCR, detectEnhancedPII } from '@/utils/ocrProcessor'
+import type { ProcessingResult, RedactionMethod, UploadedFile } from '@/types/pii'
+
+interface DashboardStats {
+  totalDocuments: number
+  totalEntities: number
+  recentProcessing: number
+  highRiskEntities: number
+}
+
+export function Dashboard() {
+  const { user, signOut } = useAuth()
+  const { toast } = useToast()
+  const [stats, setStats] = useState<DashboardStats>({
+    totalDocuments: 0,
+    totalEntities: 0,
+    recentProcessing: 0,
+    highRiskEntities: 0
+  })
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
+  const [processingResult, setProcessingResult] = useState<ProcessingResult | null>(null)
+  const [selectedMethod, setSelectedMethod] = useState<string>('Smart Placeholders')
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [activeNavTab, setActiveNavTab] = useState('upload')
+
+  const redactionMethods: RedactionMethod[] = [
+    {
+      id: 'smart-placeholders',
+      name: 'Smart Placeholders',
+      description: 'Replace PII with contextual placeholders',
+      icon: Shield,
+      enabled: true
+    },
+    {
+      id: 'complete-removal',
+      name: 'Complete Removal',
+      description: 'Remove all PII entities completely',
+      icon: Shield,
+      enabled: true
+    },
+    {
+      id: 'tokenization',
+      name: 'Tokenization',
+      description: 'Replace with secure tokens',
+      icon: Shield,
+      enabled: true
+    },
+    {
+      id: 'masking',
+      name: 'Partial Masking',
+      description: 'Show only partial information',
+      icon: Shield,
+      enabled: true
+    }
+  ]
+
+  // Handle direct text processing
+  const handleTextSubmit = async (text: string) => {
+    if (!text.trim()) {
+      toast({
+        title: 'No Text Provided',
+        description: 'Please enter some text to analyze.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setIsProcessing(true)
+    console.log('Processing text:', text.substring(0, 100) + '...')
+    
+    try {
+      // Enhanced PII detection
+      const entities = detectEnhancedPII(text)
+      console.log('Detected entities:', entities)
+
+      // Apply redaction
+      let redactedText = text
+      const sortedEntities = [...entities].sort((a, b) => b.start - a.start)
+      
+      sortedEntities.forEach(entity => {
+        const before = redactedText.substring(0, entity.start)
+        const after = redactedText.substring(entity.end)
+        let replacement = ''
+        
+        switch (selectedMethod) {
+          case 'Smart Placeholders':
+            replacement = `[${entity.type}]`
+            break
+          case 'Complete Removal':
+            replacement = ''
+            break
+          case 'Tokenization':
+            replacement = `TOKEN_${Math.random().toString(36).substr(2, 8).toUpperCase()}`
+            break
+          case 'Masking':
+            replacement = '*'.repeat(Math.min(entity.text.length, 8))
+            break
+          default:
+            replacement = `[${entity.type}]`
+        }
+        
+        redactedText = before + replacement + after
+      })
+
+      // Calculate stats
+      const highRiskEntities = entities.filter(e => e.category === 'high').length
+      const mediumRiskEntities = entities.filter(e => e.category === 'medium').length
+      const lowRiskEntities = entities.filter(e => e.category === 'low').length
+      
+      const averageConfidence = entities.length > 0 
+        ? entities.reduce((sum, e) => sum + e.confidence, 0) / entities.length 
+        : 0
+
+        const result: ProcessingResult = {
+          originalText: text,
+          redactedText,
+          entities,
+          method: selectedMethod,
+          confidence: averageConfidence,
+          timestamp: new Date().toISOString(),
+          processingTime: 100, // Add missing field
+          stats: {
+            totalEntities: entities.length,
+            highRiskEntities,
+            mediumRiskEntities,
+            lowRiskEntities,
+            averageConfidence
+          }
+        }
+
+      setProcessingResult(result)
+      setStats(prev => ({
+        ...prev,
+        totalDocuments: prev.totalDocuments + 1,
+        totalEntities: prev.totalEntities + entities.length,
+        recentProcessing: prev.recentProcessing + 1,
+        highRiskEntities: prev.highRiskEntities + highRiskEntities
+      }))
+      
+      toast({
+        title: 'Processing Complete',
+        description: `Found ${entities.length} PII entities with ${Math.round(averageConfidence * 100)}% average confidence.`,
+      })
+    } catch (error) {
+      console.error('Processing error:', error)
+      toast({
+        title: 'Processing Failed',
+        description: 'There was an error processing your text. Please try again.',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  // Handle file upload with OCR
+  const handleFileUpload = async (files: File[]) => {
+    if (!files || files.length === 0) return
+
+    const file = files[0]
+    setIsProcessing(true)
+    
+    try {
+      toast({
+        title: 'Processing File',
+        description: `Extracting text from ${file.name} using OCR...`,
+      })
+
+      // Extract text using OCR
+      const ocrResult = await extractTextWithOCR(file)
+      console.log('OCR Result:', ocrResult)
+
+      if (!ocrResult.text || ocrResult.text.trim().length === 0) {
+        throw new Error('No text could be extracted from the file')
+      }
+
+      // Process the extracted text
+      await handleTextSubmit(ocrResult.text)
+      
+      toast({
+        title: 'OCR Complete',
+        description: `Text extracted with ${Math.round(ocrResult.confidence * 100)}% confidence using ${ocrResult.method}.`,
+      })
+    } catch (error) {
+      console.error('OCR error:', error)
+      toast({
+        title: 'OCR Failed',
+        description: error instanceof Error ? error.message : 'Failed to extract text from file.',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleSignOut = async () => {
+    console.log('Signing out user')
+    await signOut()
+    toast({
+      title: 'Signed Out',
+      description: 'You have been successfully signed out.',
+    })
+  }
+
+  // Show results if available
+  if (processingResult) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto px-4 py-8">
+          <EnhancedPIIResults
+            result={processingResult}
+            redactionMethods={redactionMethods}
+            selectedMethod={selectedMethod}
+            onMethodChange={setSelectedMethod}
+            onExport={(format) => {
+              // Handle export based on format
+              if (format === 'txt') {
+                const blob = new Blob([processingResult.redactedText], { type: 'text/plain' })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = 'redacted-text.txt'
+                a.click()
+                URL.revokeObjectURL(url)
+              } else if (format === 'json') {
+                const data = {
+                  ...processingResult,
+                  exportedAt: new Date().toISOString()
+                }
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = 'pii-analysis-results.json'
+                a.click()
+                URL.revokeObjectURL(url)
+              }
+            }}
+            onBack={() => setProcessingResult(null)}
+          />
+        </div>
+        
+        <Footer />
+      </div>
+    )
+  }
+
+  // Main Dashboard View
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="bg-card border-b border-border">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <Shield className="w-8 h-8 text-primary" />
+            <div>
+              <h1 className="text-2xl font-bold text-primary">
+                PII Guardian
+              </h1>
+              <p className="text-sm text-muted-foreground">Advanced Document Redaction</p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-4">
+            <div className="text-right">
+              <p className="text-sm font-medium">{user?.email}</p>
+              <p className="text-xs text-muted-foreground">Premium Account</p>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleSignOut}
+              className="flex items-center gap-2"
+            >
+              <LogOut className="h-4 w-4" />
+              Sign Out
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      <div className="container mx-auto px-4 py-8">
+        {/* Stats Overview */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <Card className="card-elevated">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Documents Processed</p>
+                  <p className="text-3xl font-bold text-primary">{stats.totalDocuments}</p>
+                </div>
+                <FileText className="h-8 w-8 text-primary" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="card-elevated">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">PII Entities Found</p>
+                  <p className="text-3xl font-bold text-orange-500">{stats.totalEntities}</p>
+                </div>
+                <AlertTriangle className="h-8 w-8 text-orange-500" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="card-elevated">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Recent Processing</p>
+                  <p className="text-3xl font-bold text-blue-500">{stats.recentProcessing}</p>
+                </div>
+                <Clock className="h-8 w-8 text-blue-500" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="card-elevated">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">High Risk Items</p>
+                  <p className="text-3xl font-bold text-destructive">{stats.highRiskEntities}</p>
+                </div>
+                <Shield className="h-8 w-8 text-destructive" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Main Content */}
+        <Tabs defaultValue="upload" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="upload" className="flex items-center gap-2">
+              <Upload className="h-4 w-4" />
+              Upload & Process
+            </TabsTrigger>
+            <TabsTrigger value="methods" className="flex items-center gap-2">
+              <Shield className="h-4 w-4" />
+              Redaction Methods
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="flex items-center gap-2">
+              <Activity className="h-4 w-4" />
+              Analytics
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="upload" className="space-y-6">
+            <Card className="card-gradient card-elevated">
+              <CardHeader>
+                <CardTitle className="text-xl font-bold flex items-center gap-2">
+                  <Upload className="h-5 w-5 text-primary" />
+                  Document Processing with OCR
+                </CardTitle>
+                <CardDescription>
+                  Upload documents or paste text for advanced PII detection and redaction with OCR support
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <AdvancedFileUpload
+                  onFileUpload={handleFileUpload}
+                  onTextSubmit={handleTextSubmit}
+                  isProcessing={isProcessing}
+                  selectedMethod={selectedMethod}
+                  onMethodChange={setSelectedMethod}
+                  redactionMethods={redactionMethods}
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="methods" className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {redactionMethods.map((method) => (
+                <Card key={method.id} className={`card-elevated cursor-pointer transition-all hover:scale-105 ${
+                  selectedMethod === method.name ? 'ring-2 ring-primary' : ''
+                }`} onClick={() => setSelectedMethod(method.name)}>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <method.icon className="h-5 w-5 text-primary" />
+                      {method.name}
+                      {selectedMethod === method.name && (
+                        <Badge variant="default" className="ml-auto">Selected</Badge>
+                      )}
+                    </CardTitle>
+                    <CardDescription>{method.description}</CardDescription>
+                  </CardHeader>
+                </Card>
+              ))}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="analytics" className="space-y-6">
+            <Card className="card-elevated">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Activity className="h-5 w-5 text-primary" />
+                  Processing Analytics
+                </CardTitle>
+                <CardDescription>
+                  Real-time insights into your document processing
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">Analytics data will appear here after processing documents</p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+
+      <Footer />
+    </div>
+  )
+}

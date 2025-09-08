@@ -1,0 +1,258 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Enterprise PII Redaction System Design System */
+
+@layer base {
+  :root {
+    /* Base Colors - Professional Enterprise Theme */
+    --background: 248 250 252;
+    --foreground: 215 25% 27%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 215 25% 27%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 25% 27%;
+
+    /* Primary - Corporate Security Blue */
+    --primary: 214 84% 36%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 217 91% 60%;
+
+    /* Secondary - Professional Gray */
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 215 25% 27%;
+
+    /* Muted Backgrounds */
+    --muted: 220 14% 96%;
+    --muted-foreground: 215 16% 47%;
+
+    /* Accent - Security Alert Amber */
+    --accent: 45 93% 47%;
+    --accent-foreground: 26 83% 14%;
+    --accent-muted: 48 100% 96%;
+
+    /* PII Detection Colors */
+    --pii-high: 0 84% 60%;
+    --pii-medium: 33 100% 50%;
+    --pii-low: 142 76% 36%;
+    --pii-background: 220 13% 91%;
+
+    /* Status Colors */
+    --success: 142 76% 36%;
+    --success-foreground: 355 100% 97%;
+    --warning: 33 100% 50%;
+    --warning-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Borders & Inputs */
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 214 84% 36%;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(214 84% 36%), hsl(217 91% 60%));
+    --gradient-hero: linear-gradient(135deg, hsl(214 84% 36% / 0.95), hsl(217 91% 60% / 0.95));
+    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%), hsl(220 14% 98%));
+    --gradient-accent: linear-gradient(135deg, hsl(45 93% 47%), hsl(33 100% 50%));
+
+    /* Shadows */
+    --shadow-card: 0 1px 3px hsl(220 13% 91% / 0.4), 0 1px 2px hsl(220 13% 91% / 0.2);
+    --shadow-elevated: 0 4px 12px hsl(220 13% 91% / 0.15), 0 2px 4px hsl(220 13% 91% / 0.1);
+    --shadow-glow: 0 0 20px hsl(214 84% 36% / 0.15);
+    
+    /* Animations */
+    --transition-smooth: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    /* Dark Theme - Professional Security Interface */
+    --background: 215 28% 17%;
+    --foreground: 210 40% 98%;
+
+    --card: 215 28% 17%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 215 28% 17%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 217 91% 60%;
+    --primary-foreground: 215 28% 17%;
+
+    --secondary: 215 27% 25%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 215 27% 25%;
+    --muted-foreground: 217 10% 65%;
+
+    --accent: 45 93% 47%;
+    --accent-foreground: 26 83% 14%;
+
+    --border: 215 27% 25%;
+    --input: 215 27% 25%;
+    --ring: 217 91% 60%;
+
+    /* Dark theme PII colors */
+    --pii-high: 0 84% 60%;
+    --pii-medium: 33 100% 50%;
+    --pii-low: 142 76% 36%;
+
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+}
+
+@layer components {
+  /* Hero Section Styles */
+  .hero-gradient {
+    background: var(--gradient-hero);
+  }
+
+  .card-gradient {
+    background: var(--gradient-card);
+    box-shadow: var(--shadow-card);
+  }
+
+  .card-elevated {
+    box-shadow: var(--shadow-elevated);
+  }
+
+  .glow-primary {
+    box-shadow: var(--shadow-glow);
+  }
+
+  /* PII Detection Styles */
+  .pii-highlight {
+    @apply relative inline-block rounded px-1 py-0.5 text-sm font-medium;
+  }
+
+  .pii-high {
+    @apply bg-red-100 text-red-800 border border-red-200;
+  }
+
+  .pii-medium {
+    @apply bg-orange-100 text-orange-800 border border-orange-200;
+  }
+
+  .pii-low {
+    @apply bg-green-100 text-green-800 border border-green-200;
+  }
+
+  .dark .pii-high {
+    @apply bg-red-950/30 text-red-300 border-red-800/50;
+  }
+
+  .dark .pii-medium {
+    @apply bg-orange-950/30 text-orange-300 border-orange-800/50;
+  }
+
+  .dark .pii-low {
+    @apply bg-green-950/30 text-green-300 border-green-800/50;
+  }
+
+  /* Animations */
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-out;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.3s ease-out;
+  }
+
+  .animate-pulse-glow {
+    animation: pulseGlow 2s ease-in-out infinite;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes pulseGlow {
+    0%, 100% {
+      box-shadow: 0 0 5px hsl(var(--primary) / 0.2);
+    }
+    50% {
+      box-shadow: 0 0 20px hsl(var(--primary) / 0.4), 0 0 30px hsl(var(--primary) / 0.2);
+    }
+  }
+
+  /* Upload Zone */
+  .upload-zone {
+    @apply border-2 border-dashed border-muted-foreground/25 rounded-xl bg-muted/50 transition-all duration-200;
+  }
+
+  .upload-zone.drag-over {
+    @apply border-primary bg-primary/5 shadow-lg;
+  }
+
+  .upload-zone.drag-over .upload-icon {
+    @apply text-primary scale-110;
+  }
+
+  /* Text gradients */
+  .bg-gradient-text {
+    background: var(--gradient-primary);
+  }
+
+  /* Grid pattern for backgrounds */
+  .bg-grid-pattern {
+    background-image: radial-gradient(circle, hsl(var(--muted-foreground) / 0.2) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+}

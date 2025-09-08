@@ -1,0 +1,10 @@
+project_id = "sxynhhvlkmmqgcilbphh"
+
+[functions.process-pii]
+verify_jwt = false
+
+[functions.upload-document]
+verify_jwt = false
+
+[functions.export-results]
+verify_jwt = false
