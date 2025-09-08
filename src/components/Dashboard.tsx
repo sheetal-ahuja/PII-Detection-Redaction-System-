@@ -23,6 +23,7 @@ import { Footer } from './Footer'
 import { EnhancedPIIResults } from './EnhancedPIIResults'
 import { useToast } from '@/hooks/use-toast'
 import { extractTextWithOCR, detectEnhancedPII } from '@/utils/ocrProcessor'
+import { getPersonEntities } from '@/utils/ner'
 import type { ProcessingResult, RedactionMethod, UploadedFile } from '@/types/pii'
 
 interface DashboardStats {
@@ -93,23 +94,65 @@ export function Dashboard() {
     console.log('Processing text:', text.substring(0, 100) + '...')
     
     try {
-      // Enhanced PII detection
-      const entities = detectEnhancedPII(text)
-      console.log('Detected entities:', entities)
+      // Run regex-based PII detection and NER person detection in parallel
+      const [regexEntities, nerPersons] = await Promise.all([
+        Promise.resolve(detectEnhancedPII(text)),
+        getPersonEntities(text)
+      ])
 
-      // Apply redaction
+      // Map NER PERSON to unified entity shape (type = 'NAME')
+      const nerNameEntities = nerPersons.map((p, idx) => {
+        const confidence = p.confidence
+        const category = confidence >= 0.9 ? 'high' : confidence >= 0.8 ? 'medium' : 'low'
+        return {
+          id: `name_${idx + 1}`,
+          type: 'NAME',
+          text: p.text,
+          start: p.start,
+          end: p.end,
+          confidence,
+          category
+        }
+      })
+
+      // Merge and de-duplicate by exact span
+      const spanKey = (e: any) => `${e.start}-${e.end}`
+      const mergedMap = new Map<string, any>()
+      ;[...regexEntities, ...nerNameEntities].forEach(e => {
+        if (!mergedMap.has(spanKey(e))) mergedMap.set(spanKey(e), e)
+      })
+      const entities = Array.from(mergedMap.values())
+      console.log('Detected entities (with NER):', entities)
+
+      // Apply redaction with sequential numbering for NAME placeholders
       let redactedText = text
-      const sortedEntities = [...entities].sort((a, b) => b.start - a.start)
+      // Assign NAME_x indices in order of appearance
+      const nameEntitiesInOrder = entities
+        .filter((e: any) => e.type === 'NAME')
+        .sort((a: any, b: any) => a.start - b.start)
+      const nameIndexMap = new Map<string, number>()
+      nameEntitiesInOrder.forEach((e: any, i: number) => {
+        nameIndexMap.set(`${e.start}-${e.end}`, i + 1)
+      })
+
+      const sortedEntities = [...entities].sort((a: any, b: any) => b.start - a.start)
       
-      sortedEntities.forEach(entity => {
+      sortedEntities.forEach((entity: any) => {
         const before = redactedText.substring(0, entity.start)
         const after = redactedText.substring(entity.end)
         let replacement = ''
         
         switch (selectedMethod) {
           case 'Smart Placeholders':
-            replacement = `[${entity.type}]`
+          default: {
+            if (entity.type === 'NAME') {
+              const idx = nameIndexMap.get(`${entity.start}-${entity.end}`) || 1
+              replacement = `[NAME_${idx}]`
+            } else {
+              replacement = `[${entity.type}]`
+            }
             break
+          }
           case 'Complete Removal':
             replacement = ''
             break
@@ -119,8 +162,6 @@ export function Dashboard() {
           case 'Masking':
             replacement = '*'.repeat(Math.min(entity.text.length, 8))
             break
-          default:
-            replacement = `[${entity.type}]`
         }
         
         redactedText = before + replacement + after
