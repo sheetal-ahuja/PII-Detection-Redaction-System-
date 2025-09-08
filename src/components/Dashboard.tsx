@@ -15,6 +15,7 @@ import {
   Activity,
   Users
 } from 'lucide-react'
+import { jsPDF } from 'jspdf'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/integrations/supabase/client'
 import { AdvancedFileUpload } from './AdvancedFileUpload'
@@ -236,7 +237,6 @@ export function Dashboard() {
             selectedMethod={selectedMethod}
             onMethodChange={setSelectedMethod}
             onExport={(format) => {
-              // Handle export based on format
               if (format === 'txt') {
                 const blob = new Blob([processingResult.redactedText], { type: 'text/plain' })
                 const url = URL.createObjectURL(blob)
@@ -257,6 +257,64 @@ export function Dashboard() {
                 a.download = 'pii-analysis-results.json'
                 a.click()
                 URL.revokeObjectURL(url)
+              } else if (format === 'csv') {
+                const header = ['type','text','confidence','category','start','end']
+                const rows = processingResult.entities.map(e => [
+                  e.type,
+                  '"' + e.text.replace(/"/g, '""') + '"',
+                  Math.round(e.confidence * 100) + '%',
+                  e.category,
+                  e.start,
+                  e.end
+                ].join(','))
+                const csv = [header.join(','), ...rows].join('\n')
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = 'pii-entities.csv'
+                a.click()
+                URL.revokeObjectURL(url)
+              } else if (format === 'pdf') {
+                const doc = new jsPDF({ unit: 'pt', format: 'a4' })
+                const margin = 40
+                let y = margin
+                doc.setFont('helvetica','bold')
+                doc.setFontSize(16)
+                doc.text('PII Redaction Report', margin, y)
+                y += 24
+                doc.setFont('helvetica','normal')
+                doc.setFontSize(10)
+                doc.text(`Date: ${new Date().toLocaleString()}`, margin, y)
+                y += 18
+                doc.text(`Method: ${processingResult.method} | Entities: ${processingResult.entities.length} | Avg Confidence: ${Math.round(processingResult.confidence * 100)}%`, margin, y, { maxWidth: 515 })
+                y += 28
+                doc.setFont('helvetica','bold')
+                doc.text('Redacted Text', margin, y)
+                y += 16
+                doc.setFont('helvetica','normal')
+                const redactedLines = doc.splitTextToSize(processingResult.redactedText, 515)
+                redactedLines.forEach(line => {
+                  if (y > 760) { doc.addPage(); y = margin }
+                  doc.text(line, margin, y)
+                  y += 14
+                })
+                y += 10
+                doc.setFont('helvetica','bold')
+                doc.text('Entities', margin, y)
+                y += 16
+                doc.setFont('helvetica','normal')
+                processingResult.entities.slice(0, 200).forEach(e => {
+                  if (y > 760) { doc.addPage(); y = margin }
+                  const line = `${e.type} • ${e.category.toUpperCase()} • ${Math.round(e.confidence * 100)}% — ${e.text}`
+                  const wrapped = doc.splitTextToSize(line, 515)
+                  wrapped.forEach(w => {
+                    if (y > 760) { doc.addPage(); y = margin }
+                    doc.text(w, margin, y)
+                    y += 14
+                  })
+                })
+                doc.save('pii-redaction-report.pdf')
               }
             }}
             onBack={() => setProcessingResult(null)}

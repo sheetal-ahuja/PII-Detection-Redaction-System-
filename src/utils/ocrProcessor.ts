@@ -47,6 +47,11 @@ export const enhancedPIIPatterns = {
     pattern: /\b(?:Dr\.?\s+|Mr\.?\s+|Mrs\.?\s+|Ms\.?\s+|Miss\s+|Prof\.?\s+)?[A-Z][a-z]{2,15}\s+[A-Z][a-z]{2,15}(?:\s+[A-Z][a-z]{2,15})?\b/g,
     confidence: 0.95
   },
+  // PERSON alias to ensure PERSON entities are detected (mirrors NAME)
+  person: {
+    pattern: /\b(?:Dr\.?\s+|Mr\.?\s+|Mrs\.?\s+|Ms\.?\s+|Miss\s+|Prof\.?\s+)?[A-Z][a-z]{2,15}\s+[A-Z][a-z]{2,15}(?:\s+[A-Z][a-z]{2,15})?\b/g,
+    confidence: 0.95
+  },
   // Library Card IDs
   libraryCardId: {
     pattern: /\bLC-\d{6}\b/g,
@@ -229,34 +234,46 @@ async function extractFromImage(file: File): Promise<OCRResult> {
 export function detectEnhancedPII(text: string) {
   const entities: any[] = [];
   let entityId = 1;
+  const personNameSpans = new Set<string>();
 
   Object.entries(enhancedPIIPatterns).forEach(([type, { pattern, confidence }]) => {
     let match;
     const regex = new RegExp(pattern);
-    
+
     while ((match = regex.exec(text)) !== null) {
       // Additional validation for specific types
       if (type === 'creditCard' && !isValidCreditCard(match[0])) {
         continue;
       }
-      
+
       if (type === 'ssn' && !isValidSSN(match[0])) {
         continue;
       }
 
-      // Enhanced name validation to reduce false positives
-      if (type === 'name' && !isValidPersonName(match[0], text, match.index)) {
+      // Enhanced name validation to reduce false positives (applies to both name and person)
+      if ((type === 'name' || type === 'person') && !isValidPersonName(match[0], text, match.index)) {
         continue;
       }
 
       const category = confidence >= 0.9 ? 'high' : confidence >= 0.8 ? 'medium' : 'low';
-      
+      const start = match.index;
+      const end = match.index + match[0].length;
+      const spanKey = `${start}-${end}`;
+
+      // Deduplicate overlapping NAME/PERSON detections for the exact same span
+      if (type === 'name' || type === 'person') {
+        if (personNameSpans.has(spanKey)) {
+          continue;
+        }
+        personNameSpans.add(spanKey);
+      }
+
       entities.push({
         id: `${type}_${entityId++}`,
         type: type.toUpperCase(),
         text: match[0],
-        start: match.index,
-        end: match.index + match[0].length,
+        start,
+        end,
         confidence,
         category
       });
