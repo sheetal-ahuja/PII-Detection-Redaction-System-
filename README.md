@@ -170,13 +170,15 @@ Custom regex patterns for PII detection can be modified in the processing utilit
 
 ## 🚀 Deployment
 
-### Deploy to Lovable (Recommended)
-1. Open your project in Lovable
-2. Click the "Publish" button
-3. Your app will be deployed with a lovable.app domain
+### Deploy to Production
+1. Build the project: `npm run build`
+2. Deploy the `dist` folder to your preferred hosting service
+3. Configure your domain and SSL certificates
 
-### Custom Domain
-Connect your own domain through Project > Settings > Domains in Lovable.
+### Hosting Options
+- Vercel, Netlify, or similar static hosting services
+- AWS S3 + CloudFront
+- Your own server with nginx/apache
 
 ## 🤝 Contributing
 
@@ -216,15 +218,15 @@ Generate and download export files in various formats.
 
 ## 📄 License
 
-This project is built with Lovable and follows standard web development practices.
+This project follows standard web development practices and modern React patterns.
 
 ## 🆘 Support
 
 For issues and questions:
-- Check the Lovable documentation: https://docs.lovable.dev/
-- Join the Lovable Discord community
+- Check the project documentation
 - Review console logs for debugging information
+- Open an issue in the project repository
 
 ---
 
-Built with ❤️ using Lovable, React, and modern web technologies.
+Built with ❤️ using React, TypeScript, and modern web technologies.
